@@ -14,7 +14,7 @@ that try to insert invalid data and check the sample data for consistency.
 | [schema.sql](schema.sql) | Creates the `tosipay` schema: 10 tables, keys, constraints and 2 triggers. Re-runnable. |
 | [seed.sql](seed.sql) | Fictional sample data: 6 customers, 2 agents, 11 accounts, 14 transactions and the matching ledger entries. |
 | [constraint-tests.sql](constraint-tests.sql) | 22 negative tests (bad data must be rejected) and 4 consistency checks. |
-| [evidence/](evidence/) | Screenshots of the scripts being run and the test results. |
+| [evidence/constraint-tests.txt](evidence/constraint-tests.txt) | Output of the latest `constraint-tests.sql` run (22 PASS, all consistency checks clean). |
 
 ## How to run
 
@@ -218,7 +218,12 @@ or checked by a test.
 - **Part C** lists every account a person controls, including an agent
   business they own, to show the customer–agent link working.
 
-Screenshots of the test run are in [evidence/](evidence/).
+The output of the latest run is saved in
+[evidence/constraint-tests.txt](evidence/constraint-tests.txt). It was produced with:
+
+```bash
+psql -U postgres -d tosipay -f constraint-tests.sql > evidence/constraint-tests.txt 2>&1
+```
 
 ## Limitations and next steps
 

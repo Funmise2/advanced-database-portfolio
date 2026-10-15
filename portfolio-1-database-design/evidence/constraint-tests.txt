@@ -1,0 +1,68 @@
+SET
+BEGIN
+SET CONSTRAINTS
+CREATE FUNCTION
+--- Part A: invalid data must be rejected ---
+                                                                         expect_error                                                                         
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+ PASS  Duplicate phone number  -> duplicate key value violates unique constraint "customer_phone_number_key"
+ PASS  Badly formatted phone number  -> new row for relation "customer" violates check constraint "customer_phone_number_check"
+ PASS  Tier 1 customer with neither BVN nor NIN  -> new row for relation "customer" violates check constraint "chk_customer_kyc_ids"
+ PASS  Tier 2 customer with BVN but no NIN  -> new row for relation "customer" violates check constraint "chk_customer_kyc_ids"
+ PASS  Tier 3 customer with NIN but no BVN  -> new row for relation "customer" violates check constraint "chk_customer_kyc_ids"
+ PASS  NIN already used by another customer  -> duplicate key value violates unique constraint "customer_nin_key"
+ PASS  Customer with non-existent KYC tier (FK)  -> insert or update on table "customer" violates foreign key constraint "customer_kyc_tier_id_fkey"
+ PASS  Agent with no owning customer  -> null value in column "owner_customer_id" of relation "agent" violates not-null constraint
+ PASS  Account with unknown account type (FK)  -> insert or update on table "account" violates foreign key constraint "fk_account_type"
+ PASS  Wallet claiming to be agent-owned (type/owner_kind mismatch)  -> insert or update on table "account" violates foreign key constraint "fk_account_type"
+ PASS  Wallet owned by an agent  -> new row for relation "account" violates check constraint "chk_account_owner"
+ PASS  Account with two owners  -> new row for relation "account" violates check constraint "chk_account_owner"
+ PASS  Overdrawn customer wallet  -> new row for relation "account" violates check constraint "chk_account_non_negative"
+ PASS  Transaction with zero amount  -> new row for relation "txn" violates check constraint "txn_amount_check"
+ PASS  Transfer to the same account  -> new row for relation "txn" violates check constraint "chk_txn_distinct_accounts"
+ PASS  Duplicate transaction reference (idempotency)  -> duplicate key value violates unique constraint "txn_reference_key"
+ PASS  Reversal without the original transaction  -> new row for relation "txn" violates check constraint "chk_txn_reversal_link"
+ PASS  Reversing the same transaction twice  -> duplicate key value violates unique constraint "txn_reverses_txn_id_key"
+ PASS  FAILED transaction without a failure reason  -> new row for relation "txn" violates check constraint "chk_txn_failure_reason"
+ PASS  Unbalanced ledger posting (debit without credit)  -> Transaction 9 is unbalanced: debits 50001.00 <> credits 50000.00
+ PASS  Date of birth in the future  -> new row for relation "customer" violates check constraint "chk_customer_adult"
+ PASS  Customer younger than 18  -> new row for relation "customer" violates check constraint "chk_customer_adult"
+(22 rows)
+
+ROLLBACK
+--- Part B: consistency checks on the seeded data (each should return 0 rows) ---
+B1. Accounts whose stored balance differs from the ledger:
+ account_id | stored_balance | ledger_balance 
+------------+----------------+----------------
+(0 rows)
+
+B2. Transactions whose debits and credits do not match:
+ txn_id | debits | credits 
+--------+--------+---------
+(0 rows)
+
+B3. FAILED transactions that moved money:
+ txn_id | reference 
+--------+-----------
+(0 rows)
+
+B4. Sum of all balances in the system (closed system, must be 0):
+ total_of_all_balances 
+-----------------------
+                  0.00
+(1 row)
+
+--- Part C: every account a person controls (personal + agent business) ---
+ customer_id |       person       | account_number |      type_name      |      held_as       |  balance  
+-------------+--------------------+----------------+---------------------+--------------------+-----------
+           1 | Adaeze Okafor      | 2010000013     | Mobile Wallet       | (personal)         | 169990.00
+           1 | Adaeze Okafor      | 2210000017     | Savings Account     | (personal)         |  50000.00
+           2 | Tunde Bakare       | 3010000011     | Agent Float Account | Ikeja Cash Point   | 610000.00
+           2 | Tunde Bakare       | 2010000021     | Mobile Wallet       | (personal)         | 134900.00
+           3 | Halima Sani        | 2010000038     | Mobile Wallet       | (personal)         |  40000.00
+           4 | Chinedu Eze        | 2010000046     | Mobile Wallet       | (personal)         |  69900.00
+           4 | Chinedu Eze        | 1010000015     | Current Account     | (personal)         |      0.00
+           5 | Funmilayo Ogunleye | 2010000054     | Mobile Wallet       | (personal)         |  20000.00
+           6 | Ibrahim Musa       | 3010000029     | Agent Float Account | Sabon Gari POS Hub | 390000.00
+(9 rows)
+
