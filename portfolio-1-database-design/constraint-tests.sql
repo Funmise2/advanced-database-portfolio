@@ -103,7 +103,15 @@ SELECT pg_temp.expect_error('FAILED transaction without a failure reason',
 UNION ALL
 SELECT pg_temp.expect_error('Unbalanced ledger posting (debit without credit)',
   $q$INSERT INTO tosipay.ledger_entry (txn_id, account_id, entry_type, amount, balance_after)
-     VALUES (9, 5, 'DEBIT', 1, 0)$q$);
+     VALUES (9, 5, 'DEBIT', 1, 0)$q$)
+UNION ALL
+SELECT pg_temp.expect_error('Date of birth in the future',
+  $q$INSERT INTO tosipay.customer (first_name, last_name, phone_number, date_of_birth, nin)
+     VALUES ('Test', 'User', '+2348031110099', current_date + 1, '70100000099')$q$)
+UNION ALL
+SELECT pg_temp.expect_error('Customer younger than 18',
+  $q$INSERT INTO tosipay.customer (first_name, last_name, phone_number, date_of_birth, nin)
+     VALUES ('Test', 'User', '+2348031110099', current_date - INTERVAL '17 years', '70100000099')$q$);
 
 ROLLBACK;
 

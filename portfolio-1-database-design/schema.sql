@@ -47,6 +47,13 @@ CREATE TABLE customer (
     CONSTRAINT chk_customer_kyc_ids CHECK (
            (kyc_tier_id = 1 AND (bvn IS NOT NULL OR nin IS NOT NULL))
         OR (bvn IS NOT NULL AND nin IS NOT NULL)
+    ),
+    -- Business rule: customers must be at least 18, which also rules out
+    -- a date of birth in the future. current_date is not immutable, but
+    -- this check can only go from false to true as time passes, so a row
+    -- that was valid when inserted stays valid (e.g. on restore).
+    CONSTRAINT chk_customer_adult CHECK (
+        date_of_birth <= (current_date - INTERVAL '18 years')::date
     )
 );
 

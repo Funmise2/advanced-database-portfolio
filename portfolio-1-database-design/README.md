@@ -13,7 +13,7 @@ that try to insert invalid data and check the sample data for consistency.
 | `er-diagram-overview.png`, `er-diagram-full.png` | PNG exports of the two diagram pages. |
 | [schema.sql](schema.sql) | Creates the `tosipay` schema: 10 tables, keys, constraints and 2 triggers. Re-runnable. |
 | [seed.sql](seed.sql) | Fictional sample data: 6 customers, 2 agents, 11 accounts, 14 transactions and the matching ledger entries. |
-| [constraint-tests.sql](constraint-tests.sql) | 20 negative tests (bad data must be rejected) and 4 consistency checks. |
+| [constraint-tests.sql](constraint-tests.sql) | 22 negative tests (bad data must be rejected) and 4 consistency checks. |
 | [evidence/](evidence/) | Screenshots of the scripts being run and the test results. |
 
 ## How to run
@@ -112,6 +112,7 @@ Records are closed with a `status` column instead of deleted.
 |---|---|---|
 | Phone numbers are in `+234XXXXXXXXXX` format | CHECK (regex) + UNIQUE on `customer`, `agent` | A1, A2 |
 | BVN and NIN are 11 digits and unique | CHECK + UNIQUE | A6 |
+| Customers are at least 18 (so no future date of birth) | `chk_customer_adult` | A21, A22 |
 | Tier 1 needs a BVN or NIN; Tier 2 and 3 need both | `chk_customer_kyc_ids` | A3–A5 |
 | Account owner matches the account type (wallet → customer, float → agent, GL → TosiPay) | composite FK `fk_account_type` + `chk_account_owner` | A9–A12 |
 | Customer and agent accounts cannot be overdrawn | `chk_account_non_negative` | A13 |
@@ -207,7 +208,7 @@ or checked by a test.
 
 `constraint-tests.sql` has three parts:
 
-- **Part A** runs 20 invalid inserts and updates inside a transaction that is
+- **Part A** runs 22 invalid inserts and updates inside a transaction that is
   rolled back. Each line prints `PASS` with the PostgreSQL error message if the
   database rejected the bad data, or `FAIL` if it accepted it.
 - **Part B** runs 4 consistency queries on the sample data. B1–B3 must return
