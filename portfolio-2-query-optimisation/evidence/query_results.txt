@@ -1,0 +1,78 @@
+SET
+
+=== Q1. Mini statement: last 10 entries on a wallet (app home screen) ===
+           posted_at           |   txn_type   |  narration   | entry_type |  amount  | balance_after 
+-------------------------------+--------------+--------------+------------+----------+---------------
+ 2026-08-24 01:25:46.917473+01 | TRANSFER     | Transfer     | DEBIT      |  1610.00 |     184880.00
+ 2026-08-11 15:40:55.431057+01 | TRANSFER     | Transfer     | CREDIT     |  6000.00 |     186490.00
+ 2026-06-11 13:33:24.402921+01 | TRANSFER     | Transfer     | DEBIT      |  7210.00 |     180490.00
+ 2026-03-08 15:12:24.020496+01 | BILL_PAYMENT | Bill payment | DEBIT      |  6400.00 |     187700.00
+ 2026-03-06 10:49:52.414903+01 | BILL_PAYMENT | Bill payment | DEBIT      |  2000.00 |     194100.00
+ 2026-01-31 07:28:02.705215+01 | BILL_PAYMENT | Bill payment | DEBIT      |  7400.00 |     196100.00
+ 2026-01-21 21:32:30.976987+01 | BILL_PAYMENT | Bill payment | DEBIT      |  7000.00 |     203500.00
+ 2026-01-20 23:21:34.113282+01 | TRANSFER     | Transfer     | CREDIT     |  7600.00 |     210500.00
+ 2025-12-19 15:45:39.811579+01 | DEPOSIT      | Cash deposit | CREDIT     | 57100.00 |     202900.00
+ 2025-12-09 18:19:40.945201+01 | DEPOSIT      | Cash deposit | CREDIT     | 79300.00 |     145800.00
+(10 rows)
+
+
+=== Q2. Daily limit check: how much has this wallet sent today? (runs before every payment) ===
+ sent_today | daily_txn_limit 
+------------+-----------------
+    6300.00 |        50000.00
+(1 row)
+
+
+=== Q3. Customer care: all of a customer's transactions in June, found by phone number ===
+ txn_id | reference  |          created_at           | txn_type | amount  | status  | direction 
+--------+------------+-------------------------------+----------+---------+---------+-----------
+ 702182 | GEN-702182 | 2026-06-11 13:33:21.402921+01 | TRANSFER | 7200.00 | SUCCESS | OUT
+(1 row)
+
+
+=== Q4. Dispute lookup: a transaction and its ledger lines, by reference ===
+ reference  | txn_type | status  | amount  |  fee  | account_number | entry_type | entry_amount 
+------------+----------+---------+---------+-------+----------------+------------+--------------
+ GEN-500000 | TRANSFER | SUCCESS | 7000.00 | 10.00 | 2000068554     | DEBIT      |      7010.00
+ GEN-500000 | TRANSFER | SUCCESS | 7000.00 | 10.00 | 2000092664     | CREDIT     |      7000.00
+ GEN-500000 | TRANSFER | SUCCESS | 7000.00 | 10.00 | 0000000002     | CREDIT     |        10.00
+(3 rows)
+
+
+=== Q5. Agent end-of-day report: cash in and cash out at one agent ===
+ txn_type | txn_count | total_amount 
+----------+-----------+--------------
+ DEPOSIT  |         2 |     93700.00
+(1 row)
+
+
+=== Q6. Operations dashboard: failed transactions per channel, last 7 days ===
+  channel  |   txn_type   | failed_count 
+-----------+--------------+--------------
+ APP       | TRANSFER     |          222
+ APP       | BILL_PAYMENT |           93
+ USSD      | TRANSFER     |           87
+ AGENT_POS | WITHDRAWAL   |           74
+ USSD      | BILL_PAYMENT |           36
+(5 rows)
+
+
+=== Q7. Monthly biller report: bill payment volume per biller in May ===
+       biller_name       |  category   | payments | total_paid  
+-------------------------+-------------+----------+-------------
+ DStv                    | CABLE_TV    |     2331 | 10046500.00
+ Eko Electric            | ELECTRICITY |     2330 | 10026700.00
+ Lagos Water Corporation | WATER       |     2352 | 10013400.00
+ Glo Data                | DATA        |     2341 |  9958000.00
+ MTN Airtime             | AIRTIME     |     2276 |  9735300.00
+ Airtel Airtime          | AIRTIME     |     2284 |  9614600.00
+ Ikeja Electric          | ELECTRICITY |     2263 |  9596200.00
+ GOtv                    | CABLE_TV    |     2280 |  9513600.00
+(8 rows)
+
+
+=== Q8. Nightly reconciliation: accounts whose stored balance differs from the ledger ===
+ account_id | stored_balance | ledger_balance 
+------------+----------------+----------------
+(0 rows)
+
