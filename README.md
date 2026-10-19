@@ -24,7 +24,7 @@ withdrawals, bill payments and reversals.
 |---|---|---|
 | [portfolio-1-database-design](portfolio-1-database-design/) | Database design and modelling | Complete |
 | [portfolio-2-query-optimisation](portfolio-2-query-optimisation/) | Query processing and optimisation | Complete |
-| portfolio-3-transactions-concurrency | Transactions and concurrency | Not started |
+| [portfolio-3-transactions-concurrency](portfolio-3-transactions-concurrency/) | Transactions and concurrency | Complete |
 | portfolio-4-nosql | NoSQL and advanced data models | Not started |
 | portfolio-5-distributed-cloud | Distributed and cloud databases | Not started |
 
