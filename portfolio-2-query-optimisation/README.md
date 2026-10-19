@@ -15,6 +15,8 @@ The schema is the one from [Portfolio 1](../portfolio-1-database-design/).
 | [evidence/plans_before.txt](evidence/plans_before.txt) | Execution plans before `indexes.sql`. |
 | [evidence/indexes_output.txt](evidence/indexes_output.txt) | Output of `indexes.sql`, including the size of each index. It was captured on a second run, after the indexes already existed, so each `CREATE INDEX` reports "already exists, skipping". |
 | [evidence/plans_after.txt](evidence/plans_after.txt) | Execution plans after `indexes.sql`. |
+| [reconciliation.sql](reconciliation.sql) | Four other ways to run the Q8 reconciliation, and the BRIN index on `ledger_entry.posted_at` that two of them use. |
+| [evidence/reconciliation_plans.txt](evidence/reconciliation_plans.txt) | Execution plans and results of `reconciliation.sql`. |
 
 ## How to run
 
@@ -27,6 +29,7 @@ psql -U postgres -d tosipay -f portfolio-2-query-optimisation/queries.sql > port
 psql -U postgres -d tosipay -v explain="EXPLAIN (ANALYZE, BUFFERS)" -f portfolio-2-query-optimisation/queries.sql > portfolio-2-query-optimisation/evidence/plans_before.txt 2>&1
 psql -U postgres -d tosipay -f portfolio-2-query-optimisation/indexes.sql > portfolio-2-query-optimisation/evidence/indexes_output.txt 2>&1
 psql -U postgres -d tosipay -v explain="EXPLAIN (ANALYZE, BUFFERS)" -f portfolio-2-query-optimisation/queries.sql > portfolio-2-query-optimisation/evidence/plans_after.txt 2>&1
+psql -U postgres -d tosipay -v explain="EXPLAIN (ANALYZE, BUFFERS)" -f portfolio-2-query-optimisation/reconciliation.sql > portfolio-2-query-optimisation/evidence/reconciliation_plans.txt 2>&1
 ```
 
 `generate-data.sql` ends by checking that the sum of all account balances is
@@ -111,27 +114,69 @@ since the "after" run read no pages from disk.
 **Q1 still sorts.** The comment in `indexes.sql` expected the index on
 `(account_id, posted_at, entry_id)` to return rows already in order, with no
 sort. In the plan, the planner fetched the wallet's 11 entries through the
-index and then sorted them, because sorting 11 rows costs almost nothing. For
-a wallet with thousands of entries the planner would be expected to scan the
-index backwards and stop after 10 rows instead. Either way the cost is now
+index and then sorted them, because sorting 11 rows costs almost nothing. The
+backward scan does happen in Q8d below, where only the latest entry is
+wanted (`Index Scan Backward ... LIMIT 1`). Either way the cost is now
 proportional to one wallet, not to the whole ledger.
 
 **Some queries cannot be fixed with an index.** Q8 has to add up every one of
 the 2.3 million ledger entries to compare each account with its stored
 balance. There is no filter for an index to use, so the plan is the same
 before and after. The plan also shows the hash aggregate running out of
-memory and spilling to disk (`Batches: 21 ... Disk Usage: 23416kB`). Options
-for this query are:
+memory and spilling to disk (`Batches: 21 ... Disk Usage: 23416kB`). The
+next section tries to fix it another way.
 
-- raise `work_mem` for the reconciliation job only (`SET LOCAL work_mem`),
-  so the aggregate stays in memory;
-- reconcile only the accounts that had postings since the last run, which
-  turns a full scan into an indexed lookup;
-- keep the full check but run it on a read replica (Portfolio 5), so it does
+## Improving Q8: the nightly reconciliation
+
+[reconciliation.sql](reconciliation.sql) measures four other ways to run the
+reconciliation, in one session after `indexes.sql`. The plans are in
+[evidence/reconciliation_plans.txt](evidence/reconciliation_plans.txt).
+
+| # | Approach | Time | Pages read | Result |
+|---|---|---:|---:|---|
+| Q8a | Original query (baseline in the same session) | 676.9 ms | 25,543 | Hash aggregate spills 23 MB to disk |
+| Q8b | Same query with `SET LOCAL work_mem = '64MB'` | 623.2 ms | 25,543 | No spill (`Batches: 1`), but still reads the whole ledger |
+| Q8c | Only accounts with postings on the day, each one's full ledger re-added | 1,312.9 ms | 179,324 | **Slower** than the original |
+| Q8d | Same accounts, stored balance compared with the latest `balance_after` | 155.2 ms | 19,561 | About 4 times faster than Q8a |
+| Q8e | Closed-system check: all balances sum to 0 | 35.3 ms | | Covers the SYSTEM accounts |
+
+All five return no mismatches, and Q8e returns `0.00`.
+
+**More memory removes the spill but not the work.** `SET LOCAL` raises
+`work_mem` only until `COMMIT`, so live payments keep the default. Q8b no
+longer writes to disk, but it still reads every ledger entry, so it is only a
+little faster.
+
+**Checking fewer accounts made it slower.** Q8c finds the day's accounts with
+a new BRIN index on `ledger_entry.posted_at` (24 kB, the same idea as the
+`txn` index used by Q7). That step took about 7 ms and found 4,077 accounts,
+out of 131,167. But it then re-adds each account's whole history: about
+165,000 ledger rows. The ledger is stored in posting order, so one account's
+entries are scattered across the table. Fetching them through the index meant
+179,324 page reads in random order, against about 22,000 pages read in order
+by the full scan. An index helps when it leads to a few rows; when it leads
+to many rows spread over the table, a sequential scan is cheaper.
+
+**Using the running balance fixes it.** `ledger_entry.balance_after` is
+written at posting time (Portfolio 1), so the latest entry of an account
+already holds what its balance should be. Q8d reads just that entry: one
+backward scan of `idx_ledger_account_posted`, stopping after one row, for
+each changed account. Customer and agent accounts are checked by Q8d, and the
+two SYSTEM accounts (settlement and fee income), which are touched by almost
+every transaction, are covered by Q8e. Because TosiPay is a closed
+double-entry system, all balances must add up to 0. Together Q8d and Q8e take
+about 190 ms, against 677 ms for the original.
+
+**The trade-off.** Q8d trusts `balance_after`. It catches a stored balance
+that has drifted from the ledger, but not a wrong `balance_after` inside the
+ledger itself. Q8e checks the SYSTEM accounts only as a total, so two errors
+that cancel out would not show. The full check is still needed, but not
+every night. A sensible schedule is:
+
+- nightly: Q8d and Q8e, whose cost grows with the day's activity, not with
+  the whole history;
+- weekly: the full Q8b, ideally on a read replica (Portfolio 5) so it does
   not compete with live payments.
-
-At 0.7 seconds a night the query is not a problem yet. It would become one as
-the ledger grows, because its cost grows with the whole history.
 
 ## Cost of the indexes
 
