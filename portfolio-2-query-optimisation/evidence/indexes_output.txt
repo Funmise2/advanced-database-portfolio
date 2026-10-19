@@ -1,0 +1,47 @@
+Timing is on.
+SET
+Time: 0.391 ms
+psql:portfolio-2-query-optimisation/indexes.sql:22: NOTICE:  relation "idx_ledger_account_posted" already exists, skipping
+CREATE INDEX
+Time: 1.496 ms
+psql:portfolio-2-query-optimisation/indexes.sql:28: NOTICE:  relation "idx_ledger_txn" already exists, skipping
+CREATE INDEX
+Time: 0.359 ms
+psql:portfolio-2-query-optimisation/indexes.sql:37: NOTICE:  relation "idx_txn_source_created" already exists, skipping
+CREATE INDEX
+Time: 0.447 ms
+psql:portfolio-2-query-optimisation/indexes.sql:41: NOTICE:  relation "idx_txn_destination_created" already exists, skipping
+CREATE INDEX
+Time: 0.310 ms
+psql:portfolio-2-query-optimisation/indexes.sql:48: NOTICE:  relation "idx_txn_failed_created" already exists, skipping
+CREATE INDEX
+Time: 1.116 ms
+psql:portfolio-2-query-optimisation/indexes.sql:55: NOTICE:  relation "idx_txn_created_brin" already exists, skipping
+CREATE INDEX
+Time: 0.536 ms
+psql:portfolio-2-query-optimisation/indexes.sql:63: NOTICE:  relation "idx_account_customer" already exists, skipping
+CREATE INDEX
+Time: 0.521 ms
+psql:portfolio-2-query-optimisation/indexes.sql:67: NOTICE:  relation "idx_account_agent" already exists, skipping
+CREATE INDEX
+Time: 0.348 ms
+ANALYZE
+Time: 395.044 ms
+ANALYZE
+Time: 436.594 ms
+ANALYZE
+Time: 221.548 ms
+--- Index sizes ---
+         index_name          |  table_name  | index_type | index_size | table_size 
+-----------------------------+--------------+------------+------------+------------
+ idx_ledger_account_posted   | ledger_entry | btree      | 91 MB      | 177 MB
+ idx_ledger_txn              | ledger_entry | btree      | 39 MB      | 177 MB
+ idx_txn_destination_created | txn          | btree      | 27 MB      | 112 MB
+ idx_txn_source_created      | txn          | btree      | 27 MB      | 112 MB
+ idx_account_customer        | account      | btree      | 2752 kB    | 22 MB
+ idx_account_agent           | account      | btree      | 920 kB     | 22 MB
+ idx_txn_failed_created      | txn          | btree      | 408 kB     | 112 MB
+ idx_txn_created_brin        | txn          | brin       | 24 kB      | 112 MB
+(8 rows)
+
+Time: 20.394 ms
