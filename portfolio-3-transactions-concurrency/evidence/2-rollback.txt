@@ -1,0 +1,76 @@
+SET
+
+##### PART A: over the daily limit #####
+ account_number |   holder    | tier_name | daily_txn_limit | balance  
+----------------+-------------+-----------+-----------------+----------
+ 2010000038     | Halima Sani | TIER_1    |        50000.00 | 40000.00
+(1 row)
+
+SELECT post_transfer('P3-RA-20261019-140237', '2010000038', '2010000054', 60000, 10, 'USSD', 'School fees') AS txn_id 
+       reference       | status |                    failure_reason                     
+-----------------------+--------+-------------------------------------------------------
+ P3-RA-20261019-140237 | FAILED | Daily limit exceeded: 0.00 sent today, limit 50000.00
+(1 row)
+
+ ledger_lines | halima_balance_now 
+--------------+--------------------
+            0 |           40000.00
+(1 row)
+
+The attempt is kept for audit, but it has no ledger lines and the balance did not change.
+
+##### PART B: an unbalanced posting is rolled back at COMMIT #####
+--- Balances before ---
+ account_number |   balance   
+----------------+-------------
+ 0000000002     | 26687610.00
+ 2010000013     |   169990.00
+ 2010000046     |    74900.00
+(3 rows)
+
+BEGIN;
+BEGIN
+INSERT INTO txn (reference, txn_type, channel, source_account_id, destination_account_id,
+                 amount, fee, status, narration, completed_at)
+SELECT 'P3-RB-20261019-140237', 'TRANSFER', 'SYSTEM', s.account_id, d.account_id, 5000, 10, 'SUCCESS', 'Manual correction', now()
+  FROM account s, account d
+ WHERE s.account_number = '2010000013' AND d.account_number = '2010000046'
+RETURNING txn_id 
+INSERT 0 1
+UPDATE account SET balance = balance - 5010 WHERE account_number = '2010000013';
+UPDATE 1
+UPDATE account SET balance = balance + 5000 WHERE account_number = '2010000046';
+UPDATE 1
+INSERT INTO ledger_entry (txn_id, account_id, entry_type, amount, balance_after)
+SELECT 902003, a.account_id, 'DEBIT', 5010, a.balance FROM account a WHERE a.account_number = '2010000013';
+INSERT 0 1
+INSERT INTO ledger_entry (txn_id, account_id, entry_type, amount, balance_after)
+SELECT 902003, a.account_id, 'CREDIT', 5000, a.balance FROM account a WHERE a.account_number = '2010000046';
+INSERT 0 1
+--- Every statement succeeded. Inside the transaction the balances have changed: ---
+ account_number |   balance   
+----------------+-------------
+ 0000000002     | 26687610.00
+ 2010000013     |   164980.00
+ 2010000046     |    79900.00
+(3 rows)
+
+--- The NGN 10 fee was debited but never credited to the fee account. Now COMMIT: ---
+COMMIT;
+psql:portfolio-3-transactions-concurrency/2-rollback.sql:72: ERROR:  Transaction 902003 is unbalanced: debits 5010.00 <> credits 5000.00
+CONTEXT:  PL/pgSQL function check_txn_balanced() line 13 at RAISE
+
+--- After the failed COMMIT ---
+ account_number |   balance   
+----------------+-------------
+ 0000000002     | 26687610.00
+ 2010000013     |   169990.00
+ 2010000046     |    74900.00
+(3 rows)
+
+ txns_with_reference_b 
+-----------------------
+                     0
+(1 row)
+
+The balances are back where they started and the txn row does not exist: the whole transaction was rolled back.

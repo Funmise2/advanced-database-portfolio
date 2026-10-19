@@ -1,0 +1,55 @@
+SET
+
+=== Before: the three accounts this transfer will change ===
+ account_number | owner_kind |    holder    |   balance   
+----------------+------------+--------------+-------------
+ 0000000002     | SYSTEM     | Fee income   | 26687600.00
+ 2010000021     | CUSTOMER   | Tunde Bakare |   134900.00
+ 2010000046     | CUSTOMER   | Chinedu Eze  |    69900.00
+(3 rows)
+
+
+=== The transfer, inside one transaction ===
+BEGIN;
+BEGIN
+SELECT post_transfer('P3-C-20261019-140146', '2010000021', '2010000046', 5000, 10, 'APP', 'Payment for phone repair') AS txn_id 
+
+--- Inside the transaction (not yet visible to any other session) ---
+ txn_id |      reference       | txn_type | status  | amount  |  fee  
+--------+----------------------+----------+---------+---------+-------
+ 902001 | P3-C-20261019-140146 | TRANSFER | SUCCESS | 5000.00 | 10.00
+(1 row)
+
+ account_number | entry_type | amount  | balance_after 
+----------------+------------+---------+---------------
+ 2010000021     | DEBIT      | 5010.00 |     129890.00
+ 2010000046     | CREDIT     | 5000.00 |      74900.00
+ 0000000002     | CREDIT     |   10.00 |   26687610.00
+(3 rows)
+
+COMMIT;
+COMMIT
+
+=== After COMMIT: all the changes are saved together ===
+ account_number |    holder    |   balance   
+----------------+--------------+-------------
+ 0000000002     | Fee income   | 26687610.00
+ 2010000021     | Tunde Bakare |   129890.00
+ 2010000046     | Chinedu Eze  |    74900.00
+(3 rows)
+
+
+=== Retry: the app times out and sends the same request again ===
+SELECT post_transfer('P3-C-20261019-140146', '2010000021', '2010000046', 5000, 10, 'APP', 'Payment for phone repair') AS txn_id;
+psql:portfolio-3-transactions-concurrency/1-commit.sql:60: NOTICE:  Reference P3-C-20261019-140146 was already posted as txn 902001: nothing done
+ txn_id 
+--------
+ 902001
+(1 row)
+
+ txns_with_this_reference | tunde_balance_now 
+--------------------------+-------------------
+                        1 |         129890.00
+(1 row)
+
+Still one transaction and the balance did not change: the retry was safe.

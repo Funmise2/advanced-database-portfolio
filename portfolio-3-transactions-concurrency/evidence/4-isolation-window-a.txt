@@ -1,0 +1,60 @@
+SET
+
+=== ISOLATION - WINDOW A: the daily balance sheet ===
+
+##### PART 1: READ COMMITTED (the PostgreSQL default) #####
+Once window B is waiting at its first prompt, press Enter here for step 1: BEGIN ISOLATION LEVEL READ COMMITTED;
+BEGIN
+SELECT SUM(a.balance) AS owed_to_customers_and_agents
+  FROM account a
+ WHERE a.owner_kind <> 'SYSTEM' 
+Owed to customers and agents: NGN 17847322380.00
+
+>>> Next: step 2 in window B
+Do step 2 in window B first, then press Enter here for step 3: SELECT 17847322380.00 AS owed_to_customers_and_agents,
+       SUM(a.balance)                AS system_accounts,
+       17847322380.00 + SUM(a.balance) AS must_be_zero
+  FROM account a
+ WHERE a.owner_kind = 'SYSTEM';
+ owed_to_customers_and_agents | system_accounts | must_be_zero 
+------------------------------+-----------------+--------------
+               17847322380.00 | -17847302370.00 |     20010.00
+(1 row)
+
+COMMIT;
+COMMIT
+The balance sheet does not add up. The second query saw the transfer that
+committed after the first query, so the two totals come from different moments.
+
+##### PART 2: REPEATABLE READ #####
+BEGIN ISOLATION LEVEL REPEATABLE READ;
+BEGIN
+SELECT SUM(a.balance) AS owed_to_customers_and_agents
+  FROM account a
+ WHERE a.owner_kind <> 'SYSTEM' 
+Owed to customers and agents: NGN 17847302370.00
+
+>>> Next: step 4 in window B
+Do step 4 in window B first, then press Enter here for step 5: SELECT 17847302370.00 AS owed_to_customers_and_agents,
+       SUM(a.balance)                AS system_accounts,
+       17847302370.00 + SUM(a.balance) AS must_be_zero
+  FROM account a
+ WHERE a.owner_kind = 'SYSTEM';
+ owed_to_customers_and_agents | system_accounts | must_be_zero 
+------------------------------+-----------------+--------------
+               17847302370.00 | -17847302370.00 |         0.00
+(1 row)
+
+COMMIT;
+COMMIT
+The balance sheet adds up. Both queries read the snapshot taken at the first
+query, so the transfer in window B is not half-included.
+
+--- After COMMIT, a new query sees window B's second transfer, and still adds up ---
+ owed_to_customers_and_agents | system_accounts | must_be_zero 
+------------------------------+-----------------+--------------
+               17847282360.00 | -17847282360.00 |         0.00
+(1 row)
+
+
+=== Done ===

@@ -1,0 +1,39 @@
+SET
+
+=== DOUBLE SPEND - WINDOW A: Adaeze pays from the app ===
+
+##### PART 1: read, check, write back (no lock) #####
+Once window B is waiting at its first prompt, press Enter here for step 1: BEGIN;
+BEGIN
+SELECT a.balance AS seen_a FROM account a WHERE a.account_number = '2010000013' 
+SELECT round(67986.00 * 0.6, 0) AS amount_a 
+Window A sees NGN 67986.00 and approves a payment of NGN 40792 (enough money).
+
+>>> Next: step 2 in window B
+Do step 2 in window B first, then press Enter here for step 3: UPDATE account SET balance = 67986.00 - 40792 WHERE account_number = '2010000013';
+UPDATE 1
+COMMIT;
+COMMIT
+Window A saved 67986.00 - 40792 and committed.
+
+>>> Next: step 4 in window B
+Do step 4 in window B first, then press Enter here for step 5: 
+##### PART 2: the same payments through post_transfer() #####
+BEGIN;
+BEGIN
+SELECT a.balance AS seen_a FROM account a WHERE a.account_number = '2010000013' 
+SELECT round(67986.00 * 0.6, 0) AS amount_a 
+SELECT post_transfer('P3-DA-20261019-145955', '2010000013', '2010000046', 40792, 10, 'APP', 'Phone purchase') AS txn_a 
+       reference       | status  |  amount  
+-----------------------+---------+----------
+ P3-DA-20261019-145955 | SUCCESS | 40792.00
+(1 row)
+
+Posted but not committed. post_transfer() holds a row lock on the wallet until COMMIT.
+
+>>> Next: step 6 in window B. Window B will wait.
+Do step 6 in window B first (it will wait), then press Enter here for step 7: COMMIT;
+COMMIT
+Window A committed and released the lock.
+
+>>> Next: look at window B, which has now carried on by itself.
