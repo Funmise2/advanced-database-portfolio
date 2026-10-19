@@ -1,0 +1,197 @@
+SET
+
+=== Q8a. Original: every account against the full ledger ===
+                                                                              QUERY PLAN                                                                              
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Hash Join  (cost=52039.68..56562.68 rows=28783 width=42) (actual time=632.612..632.680 rows=0.00 loops=1)
+   Hash Cond: (a.account_id = l.account_id)
+   Join Filter: (a.balance <> l.ledger_balance)
+   Rows Removed by Join Filter: 101010
+   Buffers: shared hit=9333 read=16210, temp read=10413 written=16741
+   ->  Seq Scan on account a  (cost=0.00..4178.67 rows=131167 width=10) (actual time=0.017..6.715 rows=131167.00 loops=1)
+         Buffers: shared hit=2867
+   ->  Hash  (cost=51679.85..51679.85 rows=28786 width=36) (actual time=599.911..599.977 rows=101010.00 loops=1)
+         Buckets: 131072 (originally 32768)  Batches: 1 (originally 1)  Memory Usage: 5365kB
+         Buffers: shared hit=6466 read=16210, temp read=10413 written=16741
+         ->  Subquery Scan on l  (cost=51032.17..51679.85 rows=28786 width=36) (actual time=495.972..591.171 rows=101010.00 loops=1)
+               Buffers: shared hit=6466 read=16210, temp read=10413 written=16741
+               ->  Finalize HashAggregate  (cost=51032.17..51391.99 rows=28786 width=36) (actual time=495.971..586.273 rows=101010.00 loops=1)
+                     Group Key: ledger_entry.account_id
+                     Batches: 21  Memory Usage: 9521kB  Disk Usage: 23456kB
+                     Buffers: shared hit=6466 read=16210, temp read=10413 written=16741
+                     ->  Gather  (cost=43245.60..50514.02 rows=69086 width=36) (actual time=245.164..411.219 rows=300219.00 loops=1)
+                           Workers Planned: 2
+                           Workers Launched: 2
+                           Buffers: shared hit=6466 read=16210, temp read=7219 written=11552
+                           ->  Partial HashAggregate  (cost=42245.60..42605.42 rows=28786 width=36) (actual time=222.182..351.460 rows=100073.00 loops=3)
+                                 Group Key: ledger_entry.account_id
+                                 Batches: 5  Memory Usage: 8241kB  Disk Usage: 21384kB
+                                 Buffers: shared hit=6466 read=16210, temp read=7219 written=11552
+                                 Worker 0:  Batches: 5  Memory Usage: 8241kB  Disk Usage: 20176kB
+                                 Worker 1:  Batches: 5  Memory Usage: 8241kB  Disk Usage: 20464kB
+                                 ->  Parallel Seq Scan on ledger_entry  (cost=0.00..32460.80 rows=978480 width=16) (actual time=0.302..33.547 rows=782784.00 loops=3)
+                                       Buffers: shared hit=6466 read=16210
+ Planning:
+   Buffers: shared hit=297 read=37
+ Planning Time: 10.042 ms
+ Execution Time: 676.926 ms
+(32 rows)
+
+
+=== Q8b. Same query with work_mem raised for this transaction only ===
+BEGIN
+SET
+                                                                              QUERY PLAN                                                                              
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Hash Join  (cost=52039.68..56562.68 rows=28783 width=42) (actual time=613.767..613.863 rows=0.00 loops=1)
+   Hash Cond: (a.account_id = l.account_id)
+   Join Filter: (a.balance <> l.ledger_balance)
+   Rows Removed by Join Filter: 101010
+   Buffers: shared hit=9615 read=15928
+   ->  Seq Scan on account a  (cost=0.00..4178.67 rows=131167 width=10) (actual time=0.013..6.241 rows=131167.00 loops=1)
+         Buffers: shared hit=2867
+   ->  Hash  (cost=51679.85..51679.85 rows=28786 width=36) (actual time=570.376..570.471 rows=101010.00 loops=1)
+         Buckets: 131072 (originally 32768)  Batches: 1 (originally 1)  Memory Usage: 5365kB
+         Buffers: shared hit=6748 read=15928
+         ->  Subquery Scan on l  (cost=51032.17..51679.85 rows=28786 width=36) (actual time=527.838..561.394 rows=101010.00 loops=1)
+               Buffers: shared hit=6748 read=15928
+               ->  Finalize HashAggregate  (cost=51032.17..51391.99 rows=28786 width=36) (actual time=527.836..556.233 rows=101010.00 loops=1)
+                     Group Key: ledger_entry.account_id
+                     Batches: 1  Memory Usage: 47121kB
+                     Buffers: shared hit=6748 read=15928
+                     ->  Gather  (cost=43245.60..50514.02 rows=69086 width=36) (actual time=304.473..381.534 rows=300261.00 loops=1)
+                           Workers Planned: 2
+                           Workers Launched: 2
+                           Buffers: shared hit=6748 read=15928
+                           ->  Partial HashAggregate  (cost=42245.60..42605.42 rows=28786 width=36) (actual time=278.920..318.932 rows=100087.00 loops=3)
+                                 Group Key: ledger_entry.account_id
+                                 Batches: 1  Memory Usage: 38929kB
+                                 Buffers: shared hit=6748 read=15928
+                                 Worker 0:  Batches: 1  Memory Usage: 38929kB
+                                 Worker 1:  Batches: 1  Memory Usage: 38929kB
+                                 ->  Parallel Seq Scan on ledger_entry  (cost=0.00..32460.80 rows=978480 width=16) (actual time=0.371..37.116 rows=782784.00 loops=3)
+                                       Buffers: shared hit=6748 read=15928
+ Planning Time: 0.166 ms
+ Execution Time: 623.240 ms
+(30 rows)
+
+COMMIT
+
+=== New index for Q8c: BRIN on ledger_entry.posted_at ===
+Timing is on.
+psql:portfolio-2-query-optimisation/reconciliation.sql:51: NOTICE:  relation "idx_ledger_posted_brin" already exists, skipping
+CREATE INDEX
+Time: 5.586 ms
+Timing is off.
+ANALYZE
+ index_size 
+------------
+ 24 kB
+(1 row)
+
+
+=== Q8c. Rewrite: only customer and agent accounts with postings on 29 August ===
+                                                                                      QUERY PLAN                                                                                      
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=20922.96..1223122.23 rows=3739 width=42) (actual time=1312.685..1312.688 rows=0.00 loops=1)
+   Buffers: shared hit=138094 read=41230 written=1857
+   ->  Hash Join  (cost=20604.30..25455.21 rows=3758 width=10) (actual time=11.670..33.939 rows=4077.00 loops=1)
+         Hash Cond: (a.account_id = l.account_id)
+         Buffers: shared hit=2016 read=1243 written=14
+         ->  Seq Scan on account a  (cost=0.00..4506.59 rows=131167 width=10) (actual time=0.010..13.489 rows=131165.00 loops=1)
+               Filter: ((owner_kind)::text <> 'SYSTEM'::text)
+               Rows Removed by Filter: 2
+               Buffers: shared hit=1662 read=1205 written=14
+         ->  Hash  (cost=20557.32..20557.32 rows=3758 width=4) (actual time=7.120..7.121 rows=4079.00 loops=1)
+               Buckets: 4096  Batches: 1  Memory Usage: 176kB
+               Buffers: shared hit=354 read=38
+               ->  HashAggregate  (cost=20519.74..20557.32 rows=3758 width=4) (actual time=6.102..6.579 rows=4079.00 loops=1)
+                     Group Key: l.account_id
+                     Batches: 1  Memory Usage: 281kB
+                     Buffers: shared hit=354 read=38
+                     ->  Bitmap Heap Scan on ledger_entry l  (cost=13.04..20509.67 rows=4030 width=4) (actual time=3.048..4.894 rows=7218.00 loops=1)
+                           Recheck Cond: ((posted_at >= '2026-08-29 00:00:00+01'::timestamp with time zone) AND (posted_at < '2026-08-30 00:00:00+01'::timestamp with time zone))
+                           Rows Removed by Index Recheck: 32332
+                           Heap Blocks: lossy=384
+                           Buffers: shared hit=354 read=38
+                           ->  Bitmap Index Scan on idx_ledger_posted_brin  (cost=0.00..12.03 rows=13196 width=0) (actual time=0.073..0.073 rows=3840.00 loops=1)
+                                 Index Cond: ((posted_at >= '2026-08-29 00:00:00+01'::timestamp with time zone) AND (posted_at < '2026-08-30 00:00:00+01'::timestamp with time zone))
+                                 Index Searches: 1
+                                 Buffers: shared hit=6 read=2
+   ->  Subquery Scan on s  (cost=318.67..318.69 rows=1 width=32) (actual time=0.313..0.313 rows=0.00 loops=4077)
+         Filter: (a.balance <> s.ledger_balance)
+         Rows Removed by Filter: 1
+         Buffers: shared hit=136078 read=39987 written=1843
+         ->  Aggregate  (cost=318.67..318.68 rows=1 width=32) (actual time=0.313..0.313 rows=1.00 loops=4077)
+               Buffers: shared hit=136078 read=39987 written=1843
+               ->  Index Scan using idx_ledger_account_posted on ledger_entry l_1  (cost=0.43..318.04 rows=83 width=12) (actual time=0.019..0.306 rows=40.52 loops=4077)
+                     Index Cond: (account_id = a.account_id)
+                     Index Searches: 4077
+                     Buffers: shared hit=136078 read=39987 written=1843
+ Planning:
+   Buffers: shared hit=28 read=1
+ Planning Time: 0.275 ms
+ Execution Time: 1312.870 ms
+(39 rows)
+
+
+=== Q8d. Running-balance check: the same accounts against their latest balance_after ===
+                                                                                      QUERY PLAN                                                                                      
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Nested Loop  (cost=20604.73..41536.19 rows=3739 width=17) (actual time=154.979..154.983 rows=0.00 loops=1)
+   Buffers: shared hit=14359 read=5202
+   ->  Hash Join  (cost=20604.30..25455.21 rows=3758 width=10) (actual time=17.523..61.058 rows=4077.00 loops=1)
+         Hash Cond: (a.account_id = l.account_id)
+         Buffers: shared hit=433 read=2820
+         ->  Seq Scan on account a  (cost=0.00..4506.59 rows=131167 width=10) (actual time=0.105..32.532 rows=131165.00 loops=1)
+               Filter: ((owner_kind)::text <> 'SYSTEM'::text)
+               Rows Removed by Filter: 2
+               Buffers: shared hit=166 read=2701
+         ->  Hash  (cost=20557.32..20557.32 rows=3758 width=4) (actual time=5.790..5.792 rows=4079.00 loops=1)
+               Buckets: 4096  Batches: 1  Memory Usage: 176kB
+               Buffers: shared hit=267 read=119
+               ->  HashAggregate  (cost=20519.74..20557.32 rows=3758 width=4) (actual time=5.266..5.528 rows=4079.00 loops=1)
+                     Group Key: l.account_id
+                     Batches: 1  Memory Usage: 281kB
+                     Buffers: shared hit=267 read=119
+                     ->  Bitmap Heap Scan on ledger_entry l  (cost=13.04..20509.67 rows=4030 width=4) (actual time=3.365..4.587 rows=7218.00 loops=1)
+                           Recheck Cond: ((posted_at >= '2026-08-29 00:00:00+01'::timestamp with time zone) AND (posted_at < '2026-08-30 00:00:00+01'::timestamp with time zone))
+                           Rows Removed by Index Recheck: 32332
+                           Heap Blocks: lossy=384
+                           Buffers: shared hit=267 read=119
+                           ->  Bitmap Index Scan on idx_ledger_posted_brin  (cost=0.00..12.03 rows=13196 width=0) (actual time=0.041..0.041 rows=3840.00 loops=1)
+                                 Index Cond: ((posted_at >= '2026-08-29 00:00:00+01'::timestamp with time zone) AND (posted_at < '2026-08-30 00:00:00+01'::timestamp with time zone))
+                                 Index Searches: 1
+                                 Buffers: shared hit=1 read=1
+   ->  Subquery Scan on last_entry  (cost=0.43..4.27 rows=1 width=7) (actual time=0.023..0.023 rows=0.00 loops=4077)
+         Filter: (a.balance <> last_entry.balance_after)
+         Rows Removed by Filter: 1
+         Buffers: shared hit=13926 read=2382
+         ->  Limit  (cost=0.43..4.26 rows=1 width=23) (actual time=0.021..0.022 rows=1.00 loops=4077)
+               Buffers: shared hit=13926 read=2382
+               ->  Index Scan Backward using idx_ledger_account_posted on ledger_entry l_1  (cost=0.43..318.04 rows=83 width=23) (actual time=0.021..0.021 rows=1.00 loops=4077)
+                     Index Cond: (account_id = a.account_id)
+                     Index Searches: 4077
+                     Buffers: shared hit=13926 read=2382
+ Planning:
+   Buffers: shared hit=6 read=12 dirtied=3
+ Planning Time: 0.430 ms
+ Execution Time: 155.212 ms
+(39 rows)
+
+
+--- How many accounts Q8c and Q8d checked, out of all accounts ---
+ accounts_checked | all_accounts 
+------------------+--------------
+             4077 |       131167
+(1 row)
+
+
+=== Q8e. SYSTEM accounts: the closed-system check (all balances must sum to 0) ===
+Timing is on.
+ total_of_all_balances 
+-----------------------
+                  0.00
+(1 row)
+
+Time: 35.292 ms
