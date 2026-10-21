@@ -1,0 +1,54 @@
+Server: 8.2.5 (save: 3600 1 300 100 60 10000, appendonly: no)
+
+=== Key press 1: Halima dials *347*8#. A session hash is created ===
+> HSET tosipay:ussd:ATUid_7f3c91 msisdn +2348031110003 account 2010000038 menu MAIN
+(integer) 3
+> EXPIRE tosipay:ussd:ATUid_7f3c91 180
+(integer) 1
+> TTL tosipay:ussd:ATUid_7f3c91
+(integer) 180
+
+=== Key press 2: she chooses 1 (Send money) ===
+> HSET tosipay:ussd:ATUid_7f3c91 menu ENTER_RECIPIENT
+(integer) 0
+> EXPIRE tosipay:ussd:ATUid_7f3c91 180
+(integer) 1
+
+=== Key press 3: she enters the recipient's account number ===
+> HSET tosipay:ussd:ATUid_7f3c91 menu ENTER_AMOUNT recipient 2010000054
+(integer) 1
+> EXPIRE tosipay:ussd:ATUid_7f3c91 180
+(integer) 1
+
+=== Two seconds later the session is still alive, and its timer counts down ===
+> TTL tosipay:ussd:ATUid_7f3c91
+(integer) 178
+> HGETALL tosipay:ussd:ATUid_7f3c91
+1) "msisdn"
+2) "+2348031110003"
+3) "account"
+4) "2010000038"
+5) "menu"
+6) "ENTER_AMOUNT"
+7) "recipient"
+8) "2010000054"
+Each key press reads and updates one small hash by its key: no table scan, no join.
+
+=== Key press 4: she enters 5000 and confirms with her PIN ===
+> HSET tosipay:ussd:ATUid_7f3c91 menu CONFIRM amount 5000
+(integer) 1
+TosiPay now calls post_transfer() in PostgreSQL (Portfolio 3), then ends the session:
+> DEL tosipay:ussd:ATUid_7f3c91
+(integer) 1
+> EXISTS tosipay:ussd:ATUid_7f3c91
+(integer) 0
+
+=== An abandoned session: the customer walks away in the middle of the menu ===
+> HSET tosipay:ussd:ATUid_a210be msisdn +2348031110005 account 2010000054 menu ENTER_AMOUNT
+(integer) 3
+The demo uses a 3 second TTL instead of 180 seconds, so it does not have to wait 3 minutes.
+> EXPIRE tosipay:ussd:ATUid_a210be 3
+(integer) 1
+> EXISTS tosipay:ussd:ATUid_a210be
+(integer) 0
+Redis removed the session by itself when the TTL ran out. No clean-up job or DELETE was needed.

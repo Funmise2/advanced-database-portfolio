@@ -1,0 +1,50 @@
+
+=== Issue a code. NX means: only if no valid code exists already ===
+> SET tosipay:otp:+2348031110001 482913 NX EX 300
+OK
+> TTL tosipay:otp:+2348031110001
+(integer) 300
+
+=== She taps 'Resend' straight away ===
+> SET tosipay:otp:+2348031110001 771045 NX EX 300
+(nil)
+(nil): the first code is still valid, so no second code is created and no second SMS is paid for.
+
+=== She types a wrong code ===
+> INCR tosipay:otp-attempts:+2348031110001
+(integer) 1
+> EXPIRE tosipay:otp-attempts:+2348031110001 300
+(integer) 1
+Wrong code: 1 of 3 attempts used. The code itself is kept.
+
+=== She types the right code. GETDEL reads it and deletes it in one step ===
+> GETDEL tosipay:otp:+2348031110001
+"482913"
+> DEL tosipay:otp-attempts:+2348031110001
+(integer) 1
+The code matched, so the new device is trusted.
+
+=== Someone replays the same code a minute later ===
+> GETDEL tosipay:otp:+2348031110001
+(nil)
+(nil): the code was deleted when it was used, so it cannot be used twice.
+
+=== A second login: someone guesses three times ===
+> SET tosipay:otp:+2348031110001 305617 NX EX 300
+OK
+> INCR tosipay:otp-attempts:+2348031110001
+(integer) 1
+> EXPIRE tosipay:otp-attempts:+2348031110001 300
+(integer) 1
+Wrong code: 1 of 3 attempts used.
+> INCR tosipay:otp-attempts:+2348031110001
+(integer) 2
+Wrong code: 2 of 3 attempts used.
+> INCR tosipay:otp-attempts:+2348031110001
+(integer) 3
+Wrong code: 3 of 3 attempts used.
+Third wrong attempt: the code is cancelled and the customer must request a new one.
+> DEL tosipay:otp:+2348031110001 tosipay:otp-attempts:+2348031110001
+(integer) 2
+> EXISTS tosipay:otp:+2348031110001
+(integer) 0

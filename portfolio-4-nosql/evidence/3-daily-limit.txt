@@ -1,0 +1,38 @@
+
+=== The counter: one key per wallet per day, expiring at midnight Lagos time ===
+> SET tosipay:limit:2010000038:20261021 0
+OK
+> EXPIREAT tosipay:limit:2010000038:20261021 1792623600
+(integer) 1
+> TTL tosipay:limit:2010000038:20261021
+(integer) 53895
+At midnight the key disappears, so tomorrow starts from 0 with no reset job.
+
+=== PART 1: read, check, write back (two payments at once) ===
+APP : reads spent today = 0
+USSD: reads spent today = 0
+USSD: 0 + 30000 <= 50000, approved, writes 30000
+APP : 0 + 30000 <= 50000, approved, writes 30000
+> GET tosipay:limit:2010000038:20261021
+"30000"
+Both payments were approved: NGN 60,000 against a limit of NGN 50,000,
+and the counter shows only one of them. The second write overwrote the first.
+
+=== PART 2: check and add in one Lua script (two payments at once) ===
+> SET tosipay:limit:2010000038:20261021 0
+OK
+> EXPIREAT tosipay:limit:2010000038:20261021 1792623600
+(integer) 1
+USSD: approved, spent today is now 30000
+APP : rejected, 30000 already spent today and 30000 more would pass 50000
+> GET tosipay:limit:2010000038:20261021
+"30000"
+> TTL tosipay:limit:2010000038:20261021
+(integer) 53893
+Redis runs one command or script at a time, so the second script saw the first one's total.
+Exactly one payment was approved, and the counter is correct.
+
+=== If Redis loses the counter, it is rebuilt from PostgreSQL ===
+The counter is a fast first check, not the record of what was sent. PostgreSQL still checks
+the limit inside post_transfer() (Portfolio 3), and the counter can be rebuilt from the txn table
+with the daily limit query from Portfolio 2 (Q2), then written back with SET and EXPIREAT.

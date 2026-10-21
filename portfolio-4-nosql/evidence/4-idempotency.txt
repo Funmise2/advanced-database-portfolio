@@ -1,0 +1,34 @@
+
+=== First request: claim the reference ===
+> SET tosipay:idem:TP-20261021-8841 PROCESSING NX EX 86400
+OK
+OK: this request owns the reference and goes on to call post_transfer() in PostgreSQL.
+
+=== The app times out and sends the same request again ===
+> SET tosipay:idem:TP-20261021-8841 PROCESSING NX EX 86400
+(nil)
+> GET tosipay:idem:TP-20261021-8841
+"PROCESSING"
+(nil): the reference is taken, so the retry is not processed. It is told the first request is still running.
+
+=== The first request finishes: store its result, keeping the 24-hour expiry ===
+> SET tosipay:idem:TP-20261021-8841 SUCCESS:txn=902140 XX KEEPTTL
+OK
+> TTL tosipay:idem:TP-20261021-8841
+(integer) 86400
+
+=== A third copy arrives ===
+> SET tosipay:idem:TP-20261021-8841 PROCESSING NX EX 86400
+(nil)
+> GET tosipay:idem:TP-20261021-8841
+"SUCCESS:txn=902140"
+The third copy is answered with the stored result, without touching PostgreSQL.
+
+=== Three copies of a new request arrive at exactly the same moment ===
+copy 3: claimed the reference, processing
+copy 2: reference taken, not processed
+copy 1: reference taken, not processed
+> GET tosipay:idem:TP-20261021-8842
+"PROCESSING:copy3"
+SET NX is a single atomic step, so exactly one copy claimed the reference.
+After 24 hours the key expires; by then the UNIQUE reference in PostgreSQL still blocks any late duplicate.
