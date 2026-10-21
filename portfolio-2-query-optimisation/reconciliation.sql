@@ -1,18 +1,3 @@
--- =====================================================================
--- TosiPay - Portfolio 2: improving Q8 (nightly reconciliation)
---
--- Q8 did not get faster with indexes, because it adds up the whole
--- ledger. This script measures four ways to make it cheaper:
---   Q8a  the original query, as a baseline in the same session
---   Q8b  the same query with more work_mem for this job only
---   Q8c  a rewrite that only checks accounts with postings that day
---   Q8d  a running-balance check using balance_after
---   Q8e  the closed-system check that covers the SYSTEM accounts
---
--- Run after indexes.sql, with the plans shown:
---   psql -U postgres -d tosipay -v explain="EXPLAIN (ANALYZE, BUFFERS)" \
---        -f portfolio-2-query-optimisation/reconciliation.sql
--- =====================================================================
 \if :{?explain} \else \set explain '' \endif
 SET search_path TO tosipay;
 
@@ -29,7 +14,6 @@ SELECT a.account_id, a.balance AS stored_balance, l.ledger_balance
 
 \echo
 \echo '=== Q8b. Same query with work_mem raised for this transaction only ==='
--- SET LOCAL only lasts until COMMIT, so live payments keep the default.
 BEGIN;
 SET LOCAL work_mem = '64MB';
 :explain
@@ -44,8 +28,6 @@ COMMIT;
 
 \echo
 \echo '=== New index for Q8c: BRIN on ledger_entry.posted_at ==='
--- Ledger entries are inserted in posting order, so posted_at follows the
--- physical row order, the same reason the BRIN index on txn works for Q7.
 \timing on
 CREATE INDEX IF NOT EXISTS idx_ledger_posted_brin
     ON ledger_entry USING brin (posted_at);
@@ -55,9 +37,6 @@ SELECT pg_size_pretty(pg_relation_size('idx_ledger_posted_brin')) AS index_size;
 
 \echo
 \echo '=== Q8c. Rewrite: only customer and agent accounts with postings on 29 August ==='
--- Accounts with no new postings cannot have drifted since the last run,
--- so only the day's accounts are checked. Each one's ledger is summed
--- through idx_ledger_account_posted.
 :explain
 WITH changed AS (
     SELECT DISTINCT l.account_id
@@ -77,11 +56,6 @@ SELECT a.account_id, a.balance AS stored_balance, s.ledger_balance
 
 \echo
 \echo '=== Q8d. Running-balance check: the same accounts against their latest balance_after ==='
--- Q8c still re-adds each account's whole history, and an account's
--- entries are spread across the table, so that means many random page
--- reads. balance_after already holds the running total at each posting,
--- so only the account's latest entry is needed: one backward index scan
--- on idx_ledger_account_posted and one row per account.
 :explain
 WITH changed AS (
     SELECT DISTINCT l.account_id
@@ -113,11 +87,6 @@ SELECT COUNT(DISTINCT l.account_id) AS accounts_checked,
 
 \echo
 \echo '=== Q8e. SYSTEM accounts: the closed-system check (all balances must sum to 0) ==='
--- The settlement and fee accounts are touched by almost every transaction,
--- so summing their ledgers nightly would cost nearly as much as Q8a.
--- Because TosiPay is double-entry, the balances of all accounts must add
--- up to 0. If they do, and every customer and agent account matches its
--- ledger, the SYSTEM accounts are correct as a whole.
 \timing on
 SELECT SUM(a.balance) AS total_of_all_balances
   FROM account a;

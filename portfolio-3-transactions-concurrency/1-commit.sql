@@ -1,16 +1,3 @@
--- =====================================================================
--- TosiPay - Portfolio 3, example 1: COMMIT
---
--- Tunde Bakare pays Chinedu Eze NGN 5,000 from the app (fee NGN 10).
--- One transfer changes five rows: the txn header, three balances and
--- three ledger lines. They are saved together at COMMIT or not at all.
--- The same request is then retried, to show the idempotency key.
---
---   psql -U postgres -d tosipay -f portfolio-3-transactions-concurrency/1-commit.sql
---
--- Needs post-transfer.sql. Each run uses a new reference, so it can be
--- run again; every run moves NGN 5,010 out of Tunde's wallet.
--- =====================================================================
 SET search_path TO tosipay;
 
 SELECT 'P3-C-' || to_char(clock_timestamp(), 'YYYYMMDD-HH24MISS') AS ref \gset

@@ -1,18 +1,3 @@
--- =====================================================================
--- TosiPay - Portfolio 3, example 4: isolation levels (WINDOW A)
---
--- A finance officer builds the daily balance sheet in two queries:
--- money TosiPay owes customers and agents, then the SYSTEM accounts
--- (settlement and fee income). TosiPay is a closed double-entry system,
--- so the two totals must add up to exactly 0. Between the two queries,
--- a customer sends money to a bank account (window B).
---
--- Start window B first, then this window, then follow the prompts:
---   psql -U postgres -d tosipay -f portfolio-3-transactions-concurrency/4-isolation-window-a.sql
---
--- Needs post-transfer.sql. Window B moves NGN 40,020 out of Tunde
--- Bakare's wallet each run.
--- =====================================================================
 SET search_path TO tosipay;
 
 \echo

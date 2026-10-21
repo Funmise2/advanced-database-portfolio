@@ -1,18 +1,3 @@
--- =====================================================================
--- TosiPay - Portfolio 3, example 2: ROLLBACK
---
--- Part A: a business failure. Halima Sani (KYC Tier 1, daily limit
---         NGN 50,000) tries to send NGN 60,000. The attempt is saved as a
---         FAILED transaction and no money moves.
--- Part B: a technical failure. A hand-written correction forgets the
---         fee line, so debits do not equal credits. Every statement works,
---         but the deferred trg_ledger_balanced trigger rejects the
---         transaction at COMMIT and PostgreSQL rolls all of it back.
---
---   psql -U postgres -d tosipay -f portfolio-3-transactions-concurrency/2-rollback.sql
---
--- Needs post-transfer.sql. Re-runnable: each run uses new references.
--- =====================================================================
 SET search_path TO tosipay;
 
 SELECT 'P3-RA-' || to_char(clock_timestamp(), 'YYYYMMDD-HH24MISS') AS ref_a,

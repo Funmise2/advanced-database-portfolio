@@ -1,11 +1,3 @@
--- =====================================================================
--- TosiPay - Portfolio 3, example 4: isolation levels (WINDOW B)
---
--- Tunde Bakare sends NGN 20,000 to his bank account while the balance
--- sheet in window A is being built. The money leaves his wallet and
--- goes to the settlement (SYSTEM) account. Start this window first:
---   psql -U postgres -d tosipay -f portfolio-3-transactions-concurrency/4-isolation-window-b.sql
--- =====================================================================
 SET search_path TO tosipay;
 
 \echo

@@ -1,10 +1,3 @@
--- =====================================================================
--- TosiPay - Portfolio 3, example 3: double spend (WINDOW B)
---
--- Adaeze's second payment, sent over USSD at the same moment as the app
--- payment in window A. Start this window first:
---   psql -U postgres -d tosipay -f portfolio-3-transactions-concurrency/3-double-spend-window-b.sql
--- =====================================================================
 SET search_path TO tosipay;
 
 \echo

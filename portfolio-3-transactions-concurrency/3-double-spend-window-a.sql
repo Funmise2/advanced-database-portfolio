@@ -1,21 +1,3 @@
--- =====================================================================
--- TosiPay - Portfolio 3, example 3: double spend (WINDOW A)
---
--- Adaeze Okafor's wallet (2010000013) is used from two places at once:
--- the app (window A) and USSD (window B). Each payment is 60% of the
--- balance, so only one of them should be allowed.
---
--- Part 1: an early design that reads the balance, checks it, and writes
---         the new figure back, with no lock and no ledger.
--- Part 2: the same two payments through post_transfer(), which locks
---         the account with SELECT ... FOR UPDATE.
---
--- Start window B first, then this window, then follow the prompts:
---   psql -U postgres -d tosipay -f portfolio-3-transactions-concurrency/3-double-spend-window-a.sql
---
--- Needs post-transfer.sql. Part 1 repairs itself from the ledger;
--- part 2 really moves money (60% of Adaeze's wallet each run).
--- =====================================================================
 SET search_path TO tosipay;
 
 \echo
