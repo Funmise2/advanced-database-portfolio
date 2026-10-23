@@ -1,0 +1,67 @@
+SET
+
+=== On the PRIMARY (port 5432): who is replicating from it ===
+ is_standby | port 
+------------+------
+ f          | 5432
+(1 row)
+
+ application_name |   state   | sync_state |  sent_lsn  | replay_lsn |   replay_lag    
+------------------+-----------+------------+------------+------------+-----------------
+ tosipay_standby  | streaming | async      | C/A9A4A000 | C/A9A49FF8 | 00:00:00.007407
+(1 row)
+
+
+=== On the PRIMARY: Tunde pays Chinedu NGN 2,500 ===
+SELECT post_transfer('P5-R-20261023-125437', '2010000021', '2010000046', 2500, 10, 'APP', 'Replication test') AS txn_id 
+ txn_id |      reference       | status  | amount  |          created_at           
+--------+----------------------+---------+---------+-------------------------------
+ 902012 | P5-R-20261023-125437 | SUCCESS | 2500.00 | 2026-10-23 12:54:37.951125+01
+(1 row)
+
+Primary WAL position after the commit: C/A9A4E750
+You are now connected to database "tosipay" as user "postgres" on host "localhost" (address "::1") at port "5433".
+SET
+ pg_sleep 
+----------
+ 
+(1 row)
+
+
+=== On the STANDBY (port 5433), one second later ===
+ is_standby | port 
+------------+------
+ t          | 5433
+(1 row)
+
+  status   | sender_port | latest_end_lsn 
+-----------+-------------+----------------
+ streaming |        5432 | C/A9A72000
+(1 row)
+
+ standby_replay_lsn | has_replayed_the_commit 
+--------------------+-------------------------
+ C/A9A71A90         | t
+(1 row)
+
+ txn_id |      reference       | status  | amount  |          created_at           
+--------+----------------------+---------+---------+-------------------------------
+ 902012 | P5-R-20261023-125437 | SUCCESS | 2500.00 | 2026-10-23 12:54:37.951125+01
+(1 row)
+
+ account_number |  balance  
+----------------+-----------
+ 2010000021     |  82340.00
+ 2010000046     | 225186.00
+(2 rows)
+
+You are now connected to database "tosipay" as user "postgres" on host "localhost" (address "::1") at port "5432".
+SET
+
+=== The same balances on the PRIMARY ===
+ account_number |  balance  
+----------------+-----------
+ 2010000021     |  82340.00
+ 2010000046     | 225186.00
+(2 rows)
+

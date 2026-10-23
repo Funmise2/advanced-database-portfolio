@@ -1,0 +1,84 @@
+SET
+
+=== On the STANDBY: it falls behind (replay paused, as if the server were overloaded) ===
+ is_standby | port 
+------------+------
+ t          | 5433
+(1 row)
+
+SELECT pg_wal_replay_pause();
+ pg_wal_replay_pause 
+---------------------
+ 
+(1 row)
+
+ replay_state 
+--------------
+ paused
+(1 row)
+
+You are now connected to database "tosipay" as user "postgres" on host "localhost" (address "::1") at port "5432".
+SET
+
+=== On the PRIMARY: Tunde pays Chinedu NGN 1,000 ===
+SELECT post_transfer('P5-S-20261023-130358', '2010000021', '2010000046', 1000, 10, 'APP', 'Stale read test') AS txn_id 
+ tunde_balance_on_primary 
+--------------------------
+                 81330.00
+(1 row)
+
+ application_name |   state   | bytes_received_but_not_applied 
+------------------+-----------+--------------------------------
+ tosipay_standby  | streaming |                          99672
+(1 row)
+
+You are now connected to database "tosipay" as user "postgres" on host "localhost" (address "::1") at port "5433".
+SET
+
+=== On the STANDBY: Tunde checks his balance in the app, and the app reads from the standby ===
+ tunde_balance_on_standby 
+--------------------------
+                 82340.00
+(1 row)
+
+ payments_with_this_reference 
+------------------------------
+                            0
+(1 row)
+
+ received_lsn | applied_lsn 
+--------------+-------------
+ C/AE0185B8   | C/AE000060
+(1 row)
+
+The standby has received the change but not applied it. Tunde sees his old balance: a stale read.
+
+=== On the STANDBY: replay resumes ===
+SELECT pg_wal_replay_resume();
+ pg_wal_replay_resume 
+----------------------
+ 
+(1 row)
+
+SELECT pg_sleep(1);
+ pg_sleep 
+----------
+ 
+(1 row)
+
+ tunde_balance_on_standby 
+--------------------------
+                 81330.00
+(1 row)
+
+ payments_with_this_reference 
+------------------------------
+                            1
+(1 row)
+
+ caught_up 
+-----------
+ t
+(1 row)
+
+The standby has caught up and agrees with the primary again: eventual consistency.

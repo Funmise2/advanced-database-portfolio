@@ -1,0 +1,56 @@
+SET
+
+=== The STANDBY before promotion ===
+ is_standby | port 
+------------+------
+ t          | 5433
+(1 row)
+
+ timeline_id 
+-------------
+           1
+(1 row)
+
+ transactions 
+--------------
+       901025
+(1 row)
+
+
+=== Failover: promote the standby to a primary ===
+SELECT pg_promote(true, 60);
+ pg_promote 
+------------
+ t
+(1 row)
+
+ is_standby 
+------------
+ f
+(1 row)
+
+ transaction_read_only 
+-----------------------
+ off
+(1 row)
+
+CHECKPOINT
+ timeline_id 
+-------------
+           2
+(1 row)
+
+The server has left recovery and started a new timeline.
+
+=== The promoted server now accepts payments ===
+SELECT post_transfer('P5-P-20261023-125700', '2010000021', '2010000046', 1500, 10, 'APP', 'Paid after failover') AS txn_id 
+ txn_id |      reference       | status  | amount  
+--------+----------------------+---------+---------
+ 902044 | P5-P-20261023-125700 | SUCCESS | 1500.00
+(1 row)
+
+ transactions 
+--------------
+       901026
+(1 row)
+

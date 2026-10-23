@@ -1,0 +1,43 @@
+SET
+
+=== Connected to the STANDBY (port 5433) ===
+ is_standby | port 
+------------+------
+ t          | 5433
+(1 row)
+
+ transaction_read_only 
+-----------------------
+ on
+(1 row)
+
+Timing is on.
+
+=== Nightly reconciliation (Portfolio 2, Q8d): customer and agent accounts with postings on 29 August ===
+ account_id | stored_balance | balance_after 
+------------+----------------+---------------
+(0 rows)
+
+Time: 74.911 ms
+
+=== Balance sheet (Portfolio 3, example 4) in one query ===
+ owed_to_customers_and_agents | system_accounts | must_be_zero 
+------------------------------+-----------------+--------------
+               17847282320.00 | -17847282320.00 |         0.00
+(1 row)
+
+Time: 27.867 ms
+Timing is off.
+
+=== A payment sent to the standby by mistake ===
+SELECT post_transfer('P5-RO-' || to_char(clock_timestamp(), 'YYYYMMDD-HH24MISS'), '2010000021', '2010000046', 1000, 10, 'APP', 'Sent to the wrong server');
+psql:portfolio-5-distributed-cloud/2-read-replica.sql:40: ERROR:  cannot execute SELECT FOR UPDATE in a read-only transaction
+CONTEXT:  SQL statement "SELECT 1
+       FROM account a
+      WHERE a.account_number IN (p_from_number, p_to_number, '0000000002')
+      ORDER BY a.account_id
+        FOR UPDATE"
+PL/pgSQL function post_transfer(character varying,character,character,numeric,numeric,character varying,character varying) line 25 at PERFORM
+UPDATE account SET balance = balance + 1000000 WHERE account_number = '2010000021';
+psql:portfolio-5-distributed-cloud/2-read-replica.sql:41: ERROR:  cannot execute UPDATE in a read-only transaction
+Both are refused: the standby only accepts reads. Every change must go through the primary.
